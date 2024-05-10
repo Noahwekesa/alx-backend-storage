@@ -1,4 +1,4 @@
--- sql that creates an index an index idx_my_names on the table names
---  and the letter of name and the score           
+-- sql script that creates an index idx_name_first on the table names
 
-Create index idx_my_names on names(letter, score);
+CREATE INDEX idx_name_first ON names (first_name);
+
