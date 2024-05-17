@@ -1,24 +1,18 @@
 #!/usr/bin/env python3
 """
-Redis
+write string to redis
 """
 
 import redis
-from uuid import uuid4
-from typing import Union, Callable, Optional
-from sys import byteorder
-from functools import wraps
+import functools
+import uuid
+from typing import Optional, Union, Callable
 
 
 def count_calls(method: Callable) -> Callable:
-    """
-    Counts number of calls to a class method
-    """
-    key = method.__qualname__
-
-    @wraps(method)
+    @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
-        """Wrapper for method"""
+        key = f"{method.__qualname__}"
         self._redis.incr(key)
         return method(self, *args, **kwargs)
 
@@ -26,37 +20,28 @@ def count_calls(method: Callable) -> Callable:
 
 
 class Cache:
-    """
-    Class for methods that operate a caching system
-    """
-
     def __init__(self):
-        """Instance of Redis db"""
         self._redis = redis.Redis()
         self._redis.flushdb()
 
     @count_calls
-    def store(self, data: Union[str, bytes, int, float]) -> str:
-        """
-        Creates key and stores it with data
-        """
-        key = str(uuid4())
+    def store(self, data):
+        key = str(uuid.uuid4())
         self._redis.set(key, data)
         return key
 
     def get(
-        self, key: str, fn: Optional[Callable] = None
-    ) -> Union[str, bytes, int, float]:
-        """
-        Returns data converted to desired format
-        """
+        self, key: str, fn: Optional[Callable[[bytes], Union[str, int]]] = None
+    ) -> Optional[Union[str, int]]:
         value = self._redis.get(key)
+        if value is None:
+            return None
         if fn:
-            value = fn(value)
-        return value
+            return fn(value)
+        return value.decode()
 
-    def get_str(self, data: bytes) -> str:
-        return data.decode("utf-8")
+    def get_str(self, key: str) -> Optional[str]:
+        return self.get(key, lambda x: x.decode())
 
-    def get_int(self, data: bytes) -> int:
-        return int.from_bytes(data, byteorder)
+    def get_int(self, key: str) -> Optional[int]:
+        return self.get(key, lambda x: int(x))
