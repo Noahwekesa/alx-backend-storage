@@ -1,35 +1,62 @@
 #!/usr/bin/env python3
 """
-write string to redis
+Redis
 """
 
 import redis
-import uuid
-from typing import Optional, Union, Callable
+from uuid import uuid4
+from typing import Union, Callable, Optional
+from sys import byteorder
+from functools import wraps
+
+
+def count_calls(method: Callable) -> Callable:
+    """
+    Counts number of calls to a class method
+    """
+    key = method.__qualname__
+
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        """Wrapper for method"""
+        self._redis.incr(key)
+        return method(self, *args, **kwargs)
+
+    return wrapper
 
 
 class Cache:
+    """
+    Class for methods that operate a caching system
+    """
+
     def __init__(self):
+        """Instance of Redis db"""
         self._redis = redis.Redis()
         self._redis.flushdb()
 
+    @count_calls
     def store(self, data: Union[str, bytes, int, float]) -> str:
-        key = str(uuid.uuid4())
+        """
+        Creates key and stores it with data
+        """
+        key = str(uuid4())
         self._redis.set(key, data)
         return key
 
     def get(
-        self, key: str, fn: Optional[Callable[[bytes], Union[str, int]]] = None
-    ) -> Optional[Union[str, int]]:
+        self, key: str, fn: Optional[Callable] = None
+    ) -> Union[str, bytes, int, float]:
+        """
+        Returns data converted to desired format
+        """
         value = self._redis.get(key)
-        if value is None:
-            return None
         if fn:
-            return fn(value)
-        return value.decode()
+            value = fn(value)
+        return value
 
-    def get_str(self, key: str) -> Optional[str]:
-        return self.get(key, lambda x: x.decode())
+    def get_str(self, data: bytes) -> str:
+        return data.decode("utf-8")
 
-    def get_int(self, key: str) -> Optional[int]:
-        return self.get(key, lambda x: int(x))
+    def get_int(self, data: bytes) -> int:
+        return int.from_bytes(data, byteorder)
